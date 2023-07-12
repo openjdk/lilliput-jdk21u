@@ -72,6 +72,7 @@ class BasicLock;
 class ObjectMonitor;
 class JavaThread;
 class outputStream;
+typedef juint  narrowKlass;
 
 class markWord {
  private:
