@@ -298,9 +298,6 @@ void C1_MacroAssembler::allocate_array(Register obj, Register len, Register t1, 
 
   // clear rest of allocated space
   const Register len_zero = len;
-  if (UseCompactObjectHeaders) {
-    assert(header_size == 2, "check array header size");
-  }
   // We align-up the header size to word-size, because we clear the
   // possible alignment gap in initialize_header().
   int hdr_size = align_up(base_offset_in_bytes, BytesPerWord);
