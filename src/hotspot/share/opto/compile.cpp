@@ -1350,7 +1350,7 @@ const TypePtr *Compile::flatten_alias_type( const TypePtr *tj ) const {
       } else if( offset == arrayOopDesc::length_offset_in_bytes() ) {
         // range is OK as-is.
         tj = ta = TypeAryPtr::RANGE;
-      } else if( offset == oopDesc::klass_offset_in_bytes() ) {
+      } else if( offset == TypeOopPtr::klass_offset_in_bytes() ) {
         tj = TypeInstPtr::KLASS; // all klass loads look alike
         ta = TypeAryPtr::RANGE; // generic ignored junk
         ptr = TypePtr::BotPTR;
@@ -1517,7 +1517,7 @@ const TypePtr *Compile::flatten_alias_type( const TypePtr *tj ) const {
           (offset == Type::OffsetBot && tj == TypeOopPtr::BOTTOM) ||
           (offset == Type::OffsetBot && tj == TypePtr::BOTTOM) ||
           (offset == oopDesc::mark_offset_in_bytes() && tj->base() == Type::AryPtr) ||
-          (offset == oopDesc::klass_offset_in_bytes() && tj->base() == Type::AryPtr) ||
+          (offset == TypeOopPtr::klass_offset_in_bytes() && tj->base() == Type::AryPtr) ||
           (offset == arrayOopDesc::length_offset_in_bytes() && tj->base() == Type::AryPtr),
           "For oops, klasses, raw offset must be constant; for arrays the offset is never known" );
   assert( tj->ptr() != TypePtr::TopPTR &&
@@ -1682,6 +1682,10 @@ Compile::AliasType* Compile::find_alias_type(const TypePtr* adr_type, bool no_cr
       }
     }
     if (flat->isa_klassptr()) {
+      if (UseCompactObjectHeaders) {
+        if (flat->offset() == in_bytes(Klass::prototype_header_offset()))
+          alias_type(idx)->set_rewritable(false);
+      }
       if (flat->offset() == in_bytes(Klass::super_check_offset_offset()))
         alias_type(idx)->set_rewritable(false);
       if (flat->offset() == in_bytes(Klass::modifier_flags_offset()))
