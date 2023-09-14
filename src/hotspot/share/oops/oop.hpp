@@ -339,7 +339,6 @@ public:
   // for code generation
   static int mark_offset_in_bytes()      { return (int)offset_of(oopDesc, _mark); }
   static int klass_offset_in_bytes()     {
-    assert(!UseCompactObjectHeaders, "don't use klass_offset_in_bytes() with compact headers");
     return (int)offset_of(oopDesc, _metadata._klass);
   }
   static int klass_gap_offset_in_bytes() {
