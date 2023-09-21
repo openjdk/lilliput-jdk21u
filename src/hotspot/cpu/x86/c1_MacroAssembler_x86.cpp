@@ -218,9 +218,8 @@ void C1_MacroAssembler::initialize_object(Register obj, Register klass, Register
   assert((con_size_in_bytes & MinObjAlignmentInBytesMask) == 0,
          "con_size_in_bytes is not multiple of alignment");
   const int hdr_size_in_bytes = instanceOopDesc::header_size() * HeapWordSize;
-  if (UseCompactObjectHeaders) {
-    assert(hdr_size_in_bytes == 8, "check object headers size");
-  }
+  assert(!UseCompactObjectHeaders || hdr_size_in_bytes == 8, "check object headers size");
+
   initialize_header(obj, klass, noreg, t1, t2);
 
   if (!(UseTLAB && ZeroTLAB && is_tlab_allocated)) {
