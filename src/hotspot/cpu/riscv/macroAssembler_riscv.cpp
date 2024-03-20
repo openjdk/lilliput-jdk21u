@@ -1655,6 +1655,28 @@ void MacroAssembler::xorrw(Register Rd, Register Rs1, Register Rs2) {
   sign_extend(Rd, Rd, 32);
 }
 
+// Rd = Rs1 & (~Rd2)
+void MacroAssembler::andn(Register Rd, Register Rs1, Register Rs2) {
+  if (UseZbb) {
+    Assembler::andn(Rd, Rs1, Rs2);
+    return;
+  }
+
+  notr(Rd, Rs2);
+  andr(Rd, Rs1, Rd);
+}
+
+// Rd = Rs1 | (~Rd2)
+void MacroAssembler::orn(Register Rd, Register Rs1, Register Rs2) {
+  if (UseZbb) {
+    Assembler::orn(Rd, Rs1, Rs2);
+    return;
+  }
+
+  notr(Rd, Rs2);
+  orr(Rd, Rs1, Rd);
+}
+
 // Note: load_unsigned_short used to be called load_unsigned_word.
 int MacroAssembler::load_unsigned_short(Register dst, Address src) {
   int off = offset();
@@ -1966,6 +1988,22 @@ void MacroAssembler::ror_imm(Register dst, Register src, uint32_t shift, Registe
   assert(shift < 64, "shift amount must be < 64");
   slli(tmp, src, 64 - shift);
   srli(dst, src, shift);
+  orr(dst, dst, tmp);
+}
+
+// rotate left with shift bits, 32-bit version
+void MacroAssembler::rolw_imm(Register dst, Register src, uint32_t shift, Register tmp) {
+  if (UseZbb) {
+    // no roliw available
+    roriw(dst, src, 32 - shift);
+    return;
+  }
+
+  assert_different_registers(dst, tmp);
+  assert_different_registers(src, tmp);
+  assert(shift < 32, "shift amount must be < 32");
+  srliw(tmp, src, 32 - shift);
+  slliw(dst, src, shift);
   orr(dst, dst, tmp);
 }
 
@@ -4182,6 +4220,57 @@ void MacroAssembler::zero_dcache_blocks(Register base, Register cnt, Register tm
   bge(cnt, tmp1, loop);
 }
 
+// java.lang.Math.round(float a)
+// Returns the closest int to the argument, with ties rounding to positive infinity.
+void MacroAssembler::java_round_float(Register dst, FloatRegister src, FloatRegister ftmp) {
+  // this instructions calling sequence provides performance improvement on all tested devices;
+  // don't change it without re-verification
+  Label done;
+  mv(t0, jint_cast(0.5f));
+  fmv_w_x(ftmp, t0);
+
+  // dst = 0 if NaN
+  feq_s(t0, src, src); // replacing fclass with feq as performance optimization
+  mv(dst, zr);
+  beqz(t0, done);
+
+  // dst = (src + 0.5f) rounded down towards negative infinity
+  //   Adding 0.5f to some floats exceeds the precision limits for a float and rounding takes place.
+  //   RDN is required for fadd_s, RNE gives incorrect results:
+  //     --------------------------------------------------------------------
+  //     fadd.s rne (src + 0.5f): src = 8388609.000000  ftmp = 8388610.000000
+  //     fcvt.w.s rdn: ftmp = 8388610.000000 dst = 8388610
+  //     --------------------------------------------------------------------
+  //     fadd.s rdn (src + 0.5f): src = 8388609.000000  ftmp = 8388609.000000
+  //     fcvt.w.s rdn: ftmp = 8388609.000000 dst = 8388609
+  //     --------------------------------------------------------------------
+  fadd_s(ftmp, src, ftmp, RoundingMode::rdn);
+  fcvt_w_s(dst, ftmp, RoundingMode::rdn);
+
+  bind(done);
+}
+
+// java.lang.Math.round(double a)
+// Returns the closest long to the argument, with ties rounding to positive infinity.
+void MacroAssembler::java_round_double(Register dst, FloatRegister src, FloatRegister ftmp) {
+  // this instructions calling sequence provides performance improvement on all tested devices;
+  // don't change it without re-verification
+  Label done;
+  mv(t0, julong_cast(0.5));
+  fmv_d_x(ftmp, t0);
+
+  // dst = 0 if NaN
+  feq_d(t0, src, src); // replacing fclass with feq as performance optimization
+  mv(dst, zr);
+  beqz(t0, done);
+
+  // dst = (src + 0.5) rounded down towards negative infinity
+  fadd_d(ftmp, src, ftmp, RoundingMode::rdn); // RDN is required here otherwise some inputs produce incorrect results
+  fcvt_l_d(dst, ftmp, RoundingMode::rdn);
+
+  bind(done);
+}
+
 #define FCVT_SAFE(FLOATCVT, FLOATSIG)                                                     \
 void MacroAssembler::FLOATCVT##_safe(Register dst, FloatRegister src, Register tmp) {     \
   Label done;                                                                             \
@@ -4598,25 +4687,31 @@ void MacroAssembler::rt_call(address dest, Register tmp) {
   }
 }
 
-void MacroAssembler::test_bit(Register Rd, Register Rs, uint32_t bit_pos, Register tmp) {
+void MacroAssembler::test_bit(Register Rd, Register Rs, uint32_t bit_pos) {
   assert(bit_pos < 64, "invalid bit range");
   if (UseZbs) {
     bexti(Rd, Rs, bit_pos);
     return;
   }
-  andi(Rd, Rs, 1UL << bit_pos, tmp);
+  int64_t imm = (int64_t)(1UL << bit_pos);
+  if (is_simm12(imm)) {
+    and_imm12(Rd, Rs, imm);
+  } else {
+    srli(Rd, Rs, bit_pos);
+    and_imm12(Rd, Rd, 1);
+  }
 }
 
-// Implements fast-locking.
+// Implements lightweight-locking.
 // Branches to slow upon failure to lock the object.
 // Falls through upon success.
 //
 //  - obj: the object to be locked
 //  - hdr: the header, already loaded from obj, will be destroyed
 //  - tmp1, tmp2: temporary registers, will be destroyed
-void MacroAssembler::fast_lock(Register obj, Register hdr, Register tmp1, Register tmp2, Label& slow) {
+void MacroAssembler::lightweight_lock(Register obj, Register hdr, Register tmp1, Register tmp2, Label& slow) {
   assert(LockingMode == LM_LIGHTWEIGHT, "only used with new lightweight locking");
-  assert_different_registers(obj, hdr, tmp1, tmp2);
+  assert_different_registers(obj, hdr, tmp1, tmp2, t0);
 
   // Check if we would have space on lock-stack for the object.
   lwu(tmp1, Address(xthread, JavaThread::lock_stack_top_offset()));
@@ -4641,16 +4736,16 @@ void MacroAssembler::fast_lock(Register obj, Register hdr, Register tmp1, Regist
   sw(tmp1, Address(xthread, JavaThread::lock_stack_top_offset()));
 }
 
-// Implements fast-unlocking.
+// Implements ligthweight-unlocking.
 // Branches to slow upon failure.
 // Falls through upon success.
 //
 // - obj: the object to be unlocked
 // - hdr: the (pre-loaded) header of the object
 // - tmp1, tmp2: temporary registers
-void MacroAssembler::fast_unlock(Register obj, Register hdr, Register tmp1, Register tmp2, Label& slow) {
+void MacroAssembler::lightweight_unlock(Register obj, Register hdr, Register tmp1, Register tmp2, Label& slow) {
   assert(LockingMode == LM_LIGHTWEIGHT, "only used with new lightweight locking");
-  assert_different_registers(obj, hdr, tmp1, tmp2);
+  assert_different_registers(obj, hdr, tmp1, tmp2, t0);
 
 #ifdef ASSERT
   {
