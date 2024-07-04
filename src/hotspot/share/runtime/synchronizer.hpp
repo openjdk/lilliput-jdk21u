@@ -70,6 +70,7 @@ public:
 class ObjectSynchronizer : AllStatic {
   friend class VMStructs;
   friend class ObjectMonitorDeflationLogging;
+  friend class WhiteBox;
 
  public:
   typedef enum {
