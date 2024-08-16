@@ -79,7 +79,7 @@ public abstract class JavaVFrame extends VFrame {
 
   private String identifyLockState(MonitorInfo monitor, String waitingState) {
     Mark mark = new Mark(monitor.owner());
-    if (mark.hasMonitor() &&
+    if (mark.hasMonitor() && mark.monitor() != null &&
         ( // we have marked ourself as pending on this monitor
           mark.monitor().equals(thread.getCurrentPendingMonitor()) ||
           // Owned anonymously means that we are not the owner of
