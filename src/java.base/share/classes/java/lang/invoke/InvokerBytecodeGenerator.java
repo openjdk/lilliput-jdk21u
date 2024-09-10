@@ -269,7 +269,7 @@ class InvokerBytecodeGenerator {
         final int NOT_ACC_PUBLIC = 0;  // not ACC_PUBLIC
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES);
         setClassWriter(cw);
-        cw.visit(CLASSFILE_VERSION, NOT_ACC_PUBLIC + Opcodes.ACC_FINAL + Opcodes.ACC_SUPER,
+        cw.visit(CLASSFILE_VERSION, NOT_ACC_PUBLIC + Opcodes.ACC_ABSTRACT + Opcodes.ACC_SUPER,
                 className, null, INVOKER_SUPER_NAME, null);
         cw.visitSource(SOURCE_PREFIX + name, null);
         return cw;

@@ -40,6 +40,10 @@
 #include "oops/oop.inline.hpp"
 #include "runtime/handles.inline.hpp"
 
+void* ArrayKlass::operator new(size_t size, ClassLoaderData* loader_data, size_t word_size, TRAPS) throw() {
+  return Metaspace::allocate(loader_data, word_size, MetaspaceObj::ClassType, true, THREAD);
+}
+
 int ArrayKlass::static_size(int header_size) {
   // size of an array klass object
   assert(header_size <= InstanceKlass::header_size(), "bad header size");

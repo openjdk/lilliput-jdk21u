@@ -199,8 +199,6 @@ protected:
   Klass(KlassKind kind);
   Klass() : _kind(UnknownKlassKind) { assert(DumpSharedSpaces || UseSharedSpaces, "only for cds"); }
 
-  void* operator new(size_t size, ClassLoaderData* loader_data, size_t word_size, TRAPS) throw();
-
  public:
   int kind() { return _kind; }
 
