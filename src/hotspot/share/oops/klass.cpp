@@ -196,7 +196,7 @@ static markWord make_prototype(Klass* kls) {
     // Note that only those Klass that can be instantiated have a narrow Klass ID.
     // For those who don't, we leave the klass bits empty and assert if someone
     // tries to use those.
-    const narrowKlass nk = CompressedKlassPointers::is_in_encoding_range(kls) ?
+    const narrowKlass nk = CompressedKlassPointers::is_encodable(kls) ?
         CompressedKlassPointers::encode(const_cast<Klass*>(kls)) : 0;
     prototype = prototype.set_narrow_klass(nk);
   }
