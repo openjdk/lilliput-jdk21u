@@ -101,7 +101,6 @@ Mutex*   tty_lock                     = nullptr;
 Mutex*   RawMonitor_lock              = nullptr;
 Mutex*   PerfDataMemAlloc_lock        = nullptr;
 Mutex*   PerfDataManager_lock         = nullptr;
-Mutex*   OopMapCacheAlloc_lock        = nullptr;
 
 Mutex*   FreeList_lock                = nullptr;
 Mutex*   OldSets_lock                 = nullptr;
@@ -292,9 +291,9 @@ void mutex_init() {
   }
 
 #if INCLUDE_JFR
-  MUTEX_DEFN(JfrBuffer_lock                  , PaddedMutex  , nosafepoint);
-  MUTEX_DEFN(JfrMsg_lock                     , PaddedMonitor, nosafepoint-3);
-  MUTEX_DEFN(JfrStacktrace_lock              , PaddedMutex  , stackwatermark-1);
+  MUTEX_DEFN(JfrBuffer_lock                  , PaddedMutex  , event);
+  MUTEX_DEFN(JfrMsg_lock                     , PaddedMonitor, event);
+  MUTEX_DEFN(JfrStacktrace_lock              , PaddedMutex  , event);
   MUTEX_DEFN(JfrThreadSampler_lock           , PaddedMonitor, nosafepoint);
 #endif
 
@@ -304,7 +303,7 @@ void mutex_init() {
 
   MUTEX_DEFN(ContinuationRelativize_lock     , PaddedMonitor, nosafepoint-3);
   MUTEX_DEFN(CodeHeapStateAnalytics_lock     , PaddedMutex  , safepoint);
-  MUTEX_DEFN(ThreadsSMRDelete_lock           , PaddedMonitor, nosafepoint-3); // Holds ConcurrentHashTableResize_lock
+  MUTEX_DEFN(ThreadsSMRDelete_lock           , PaddedMonitor, service-2); // Holds ConcurrentHashTableResize_lock
   MUTEX_DEFN(ThreadIdTableCreate_lock        , PaddedMutex  , safepoint);
   MUTEX_DEFN(SharedDecoder_lock              , PaddedMutex  , tty-1);
   MUTEX_DEFN(DCmdFactory_lock                , PaddedMutex  , nosafepoint);
@@ -356,7 +355,6 @@ void mutex_init() {
     MUTEX_DEFL(PSOldGenExpand_lock          , PaddedMutex  , Heap_lock, true);
   }
 #endif
-  MUTEX_DEFL(OopMapCacheAlloc_lock          , PaddedMutex  ,  Threads_lock, true);
   MUTEX_DEFL(Module_lock                    , PaddedMutex  ,  ClassLoaderDataGraph_lock);
   MUTEX_DEFL(SystemDictionary_lock          , PaddedMonitor, Module_lock);
   MUTEX_DEFL(JNICritical_lock               , PaddedMonitor, AdapterHandlerLibrary_lock); // used for JNI critical regions

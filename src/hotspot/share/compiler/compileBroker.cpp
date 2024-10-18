@@ -832,8 +832,15 @@ void DeoptimizeObjectsALotThread::deoptimize_objects_alot_loop_all() {
 
 
 JavaThread* CompileBroker::make_thread(ThreadType type, jobject thread_handle, CompileQueue* queue, AbstractCompiler* comp, JavaThread* THREAD) {
-  JavaThread* new_thread = nullptr;
+  Handle thread_oop(THREAD, JNIHandles::resolve_non_null(thread_handle));
 
+  if (java_lang_Thread::thread(thread_oop()) != nullptr) {
+    assert(type == compiler_t, "should only happen with reused compiler threads");
+    // The compiler thread hasn't actually exited yet so don't try to reuse it
+    return nullptr;
+  }
+
+  JavaThread* new_thread = nullptr;
   switch (type) {
     case compiler_t:
       assert(comp != nullptr, "Compiler instance missing.");
@@ -862,7 +869,6 @@ JavaThread* CompileBroker::make_thread(ThreadType type, jobject thread_handle, C
   // JavaThread due to lack of resources. We will handle that failure below.
   // Also check new_thread so that static analysis is happy.
   if (new_thread != nullptr && new_thread->osthread() != nullptr) {
-    Handle thread_oop(THREAD, JNIHandles::resolve_non_null(thread_handle));
 
     if (type == compiler_t) {
       CompilerThread::cast(new_thread)->set_compiler(comp);
@@ -1775,7 +1781,7 @@ bool CompileBroker::init_compiler_runtime() {
 void CompileBroker::free_buffer_blob_if_allocated(CompilerThread* thread) {
   BufferBlob* blob = thread->get_buffer_blob();
   if (blob != nullptr) {
-    blob->flush();
+    blob->purge(true /* free_code_cache_data */, true /* unregister_nmethod */);
     MutexLocker mu(CodeCache_lock, Mutex::_no_safepoint_check_flag);
     CodeCache::free(blob);
   }
@@ -2289,7 +2295,9 @@ void CompileBroker::invoke_compiler_on_method(CompileTask* task) {
     compilable = ci_env.compilable();
 
     if (ci_env.failing()) {
-      failure_reason = ci_env.failure_reason();
+      // Duplicate the failure reason string, so that it outlives ciEnv
+      failure_reason = os::strdup(ci_env.failure_reason(), mtCompiler);
+      failure_reason_on_C_heap = true;
       retry_message = ci_env.retry_message();
       ci_env.report_failure(failure_reason);
     }

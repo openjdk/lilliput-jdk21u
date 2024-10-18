@@ -143,7 +143,7 @@ public:
   static unsigned int align_code_offset(int offset);
 
   // Deletion
-  virtual void flush();
+  virtual void purge(bool free_code_cache_data, bool unregister_nmethod);
 
   // Typing
   virtual bool is_buffer_blob() const                 { return false; }
@@ -194,9 +194,9 @@ public:
   // Sizes
   int size() const                               { return _size; }
   int header_size() const                        { return _header_size; }
-  int relocation_size() const                    { return (address) relocation_end() - (address) relocation_begin(); }
-  int content_size() const                       { return           content_end()    -           content_begin();    }
-  int code_size() const                          { return           code_end()       -           code_begin();       }
+  int relocation_size() const                    { return pointer_delta_as_int((address) relocation_end(), (address) relocation_begin()); }
+  int content_size() const                       { return pointer_delta_as_int(content_end(), content_begin()); }
+  int code_size() const                          { return pointer_delta_as_int(code_end(), code_begin()); }
   // Only used from CodeCache::free_unused_tail() after the Interpreter blob was trimmed
   void adjust_size(size_t used) {
     _size = (int)used;
