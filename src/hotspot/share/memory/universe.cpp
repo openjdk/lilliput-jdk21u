@@ -125,7 +125,7 @@ OopHandle Universe::_msg_class_metaspace;
 
 OopHandle Universe::_null_ptr_exception_instance;
 OopHandle Universe::_arithmetic_exception_instance;
-OopHandle Universe::_virtual_machine_error_instance;
+OopHandle Universe::_internal_error_instance;
 
 OopHandle Universe::_reference_pending_list;
 
@@ -180,7 +180,7 @@ oop Universe::the_min_jint_string()               { return _the_min_jint_string.
 
 oop Universe::null_ptr_exception_instance()       { return _null_ptr_exception_instance.resolve(); }
 oop Universe::arithmetic_exception_instance()     { return _arithmetic_exception_instance.resolve(); }
-oop Universe::virtual_machine_error_instance()    { return _virtual_machine_error_instance.resolve(); }
+oop Universe::internal_error_instance()           { return _internal_error_instance.resolve(); }
 
 oop Universe::the_null_sentinel()                 { return _the_null_sentinel.resolve(); }
 
@@ -1021,14 +1021,14 @@ bool universe_post_init() {
   Universe::_arithmetic_exception_instance = OopHandle(Universe::vm_global(), instance);
 
   // Virtual Machine Error for when we get into a situation we can't resolve
-  k = vmClasses::VirtualMachineError_klass();
+  k = vmClasses::InternalError_klass();
   bool linked = InstanceKlass::cast(k)->link_class_or_fail(CHECK_false);
   if (!linked) {
-     tty->print_cr("Unable to link/verify VirtualMachineError class");
+     tty->print_cr("Unable to link/verify InternalError class");
      return false; // initialization failed
   }
   instance = InstanceKlass::cast(k)->allocate_instance(CHECK_false);
-  Universe::_virtual_machine_error_instance = OopHandle(Universe::vm_global(), instance);
+  Universe::_internal_error_instance = OopHandle(Universe::vm_global(), instance);
 
   Handle msg = java_lang_String::create_from_str("/ by zero", CHECK_false);
   java_lang_Throwable::set_message(Universe::arithmetic_exception_instance(), msg());

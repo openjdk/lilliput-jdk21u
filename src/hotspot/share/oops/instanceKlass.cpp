@@ -1471,6 +1471,7 @@ instanceOop InstanceKlass::register_finalizer(instanceOop i, TRAPS) {
 }
 
 instanceOop InstanceKlass::allocate_instance(TRAPS) {
+  assert(!is_abstract() && !is_interface(), "Should not create this object");
   bool has_finalizer_flag = has_finalizer(); // Query before possible GC
   size_t size = size_helper();  // Query before forming handle.
 

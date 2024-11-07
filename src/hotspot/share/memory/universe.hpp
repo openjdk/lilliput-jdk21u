@@ -140,7 +140,7 @@ class Universe: AllStatic {
 
   static OopHandle    _null_ptr_exception_instance;   // preallocated exception object
   static OopHandle    _arithmetic_exception_instance; // preallocated exception object
-  static OopHandle    _virtual_machine_error_instance; // preallocated exception object
+  static OopHandle    _internal_error_instance;       // preallocated exception object
 
   // References waiting to be transferred to the ReferenceHandler
   static OopHandle    _reference_pending_list;
@@ -261,8 +261,8 @@ class Universe: AllStatic {
 
   static oop          null_ptr_exception_instance();
   static oop          arithmetic_exception_instance();
-  static oop          virtual_machine_error_instance();
-  static oop          vm_exception()                  { return virtual_machine_error_instance(); }
+  static oop          internal_error_instance();
+  static oop          vm_exception()                  { return internal_error_instance(); }
 
   static Array<Klass*>* the_array_interfaces_array()  { return _the_array_interfaces_array;   }
   static Method*      finalizer_register_method()     { return _finalizer_register_cache->get_method(); }
