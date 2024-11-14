@@ -2064,8 +2064,6 @@
   declare_constant(BytesPerWord)                                          \
   declare_constant(BytesPerLong)                                          \
                                                                           \
-  declare_constant(LogKlassAlignmentInBytes)                              \
-                                                                          \
   declare_constant(HeapWordSize)                                          \
   declare_constant(LogHeapWordSize)                                       \
                                                                           \
@@ -2581,12 +2579,10 @@
   declare_constant(markWord::lock_bits)                                   \
   declare_constant(markWord::max_hash_bits)                               \
   declare_constant(markWord::hash_bits)                                   \
-  declare_constant(markWord::hash_bits_compact)                           \
                                                                           \
   declare_constant(markWord::lock_shift)                                  \
   declare_constant(markWord::age_shift)                                   \
   declare_constant(markWord::hash_shift)                                  \
-  declare_constant(markWord::hash_shift_compact)                          \
   LP64_ONLY(declare_constant(markWord::klass_shift))                      \
                                                                           \
   declare_constant(markWord::lock_mask)                                   \
@@ -2595,8 +2591,6 @@
   declare_constant(markWord::age_mask_in_place)                           \
   declare_constant(markWord::hash_mask)                                   \
   declare_constant(markWord::hash_mask_in_place)                          \
-  declare_constant(markWord::hash_mask_compact)                           \
-  declare_constant(markWord::hash_mask_compact_in_place)                  \
                                                                           \
   declare_constant(markWord::locked_value)                                \
   declare_constant(markWord::unlocked_value)                              \

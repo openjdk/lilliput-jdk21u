@@ -112,23 +112,12 @@ class markWord {
   static const int self_forwarded_bits            = 1;
   static const int max_hash_bits                  = BitsPerWord - age_bits - lock_bits - self_forwarded_bits;
   static const int hash_bits                      = max_hash_bits > 31 ? 31 : max_hash_bits;
-  static const int hash_bits_compact              = max_hash_bits > 25 ? 25 : max_hash_bits;
-  // Used only without compact headers.
-  static const int unused_gap_bits                = LP64_ONLY(1) NOT_LP64(0);
-#ifdef _LP64
-  // Used only with compact headers.
-  static const int klass_bits                     = 32;
-#endif
+  static const int unused_gap_bits                = LP64_ONLY(4) NOT_LP64(0);  // Reserved for Valhalla.
 
   static const int lock_shift                     = 0;
   static const int self_forwarded_shift           = lock_shift + lock_bits;
   static const int age_shift                      = self_forwarded_shift + self_forwarded_bits;
   static const int hash_shift                     = age_shift + age_bits + unused_gap_bits;
-  static const int hash_shift_compact             = age_shift + age_bits;
-#ifdef _LP64
-  // Used only with compact headers.
-  static const int klass_shift                    = hash_shift_compact + hash_bits_compact;
-#endif
 
   static const uintptr_t lock_mask                = right_n_bits(lock_bits);
   static const uintptr_t lock_mask_in_place       = lock_mask << lock_shift;
@@ -138,12 +127,16 @@ class markWord {
   static const uintptr_t age_mask_in_place        = age_mask << age_shift;
   static const uintptr_t hash_mask                = right_n_bits(hash_bits);
   static const uintptr_t hash_mask_in_place       = hash_mask << hash_shift;
-  static const uintptr_t hash_mask_compact        = right_n_bits(hash_bits_compact);
-  static const uintptr_t hash_mask_compact_in_place = hash_mask_compact << hash_shift_compact;
+
 #ifdef _LP64
-  // Used only with compact headers.
-  static const uintptr_t klass_mask               = right_n_bits(klass_bits);
-  static const uintptr_t klass_mask_in_place      = klass_mask << klass_shift;
+  // Used only with compact headers:
+  // We store the (narrow) Klass* in the bits 43 to 64.
+
+  // These are for bit-precise extraction of the narrow Klass* from the 64-bit Markword
+  static constexpr int klass_shift                = hash_shift + hash_bits;
+  static constexpr int klass_bits                 = 22;
+  static constexpr uintptr_t klass_mask           = right_n_bits(klass_bits);
+  static constexpr uintptr_t klass_mask_in_place  = klass_mask << klass_shift;
 #endif
 
 
@@ -237,15 +230,9 @@ class markWord {
   markWord displaced_mark_helper() const;
   void set_displaced_mark_helper(markWord m) const;
   markWord copy_set_hash(intptr_t hash) const {
-    if (UseCompactObjectHeaders) {
-      uintptr_t tmp = value() & (~hash_mask_compact_in_place);
-      tmp |= ((hash & hash_mask_compact) << hash_shift_compact);
-      return markWord(tmp);
-    } else {
-      uintptr_t tmp = value() & (~hash_mask_in_place);
-      tmp |= ((hash & hash_mask) << hash_shift);
-      return markWord(tmp);
-    }
+    uintptr_t tmp = value() & (~hash_mask_in_place);
+    tmp |= ((hash & hash_mask) << hash_shift);
+    return markWord(tmp);
   }
   // it is only used to be stored into BasicLock as the
   // indicator that the lock is using heavyweight monitor
@@ -283,11 +270,7 @@ class markWord {
 
   // hash operations
   intptr_t hash() const {
-    if (UseCompactObjectHeaders) {
-      return mask_bits(value() >> hash_shift_compact, hash_mask_compact);
-    } else {
-      return mask_bits(value() >> hash_shift, hash_mask);
-    }
+    return mask_bits(value() >> hash_shift, hash_mask);
   }
 
   bool has_no_hash() const {

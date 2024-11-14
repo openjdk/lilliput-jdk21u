@@ -733,6 +733,10 @@ protected:
 
   // for error reporting
   static bool is_valid(Klass* k);
+
+  // Returns true if this Klass needs to be addressable via narrow Klass ID.
+  inline bool needs_narrow_id() const;
+
 };
 
 #endif // SHARE_OOPS_KLASS_HPP

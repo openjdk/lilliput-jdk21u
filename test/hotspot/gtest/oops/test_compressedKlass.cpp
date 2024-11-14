@@ -44,7 +44,8 @@ TEST_VM(CompressedKlass, basics) {
     ASSERT_EQ(CompressedKlassPointers::encoding_range_end() - CompressedKlassPointers::base(), (ptrdiff_t)(32 * G));
     break;
   default:
-    ShouldNotReachHere();
+    const size_t expected_size = nth_bit(CompressedKlassPointers::narrow_klass_pointer_bits() + CompressedKlassPointers::shift());
+    ASSERT_EQ(CompressedKlassPointers::encoding_range_end() - CompressedKlassPointers::base(), (ptrdiff_t)expected_size);
   }
 }
 
@@ -72,8 +73,9 @@ TEST_VM(CompressedKlass, test_good_address) {
   if (!UseCompressedClassPointers) {
     return;
   }
+  const size_t alignment = CompressedKlassPointers::klass_alignment_in_bytes();
   address addr = CompressedKlassPointers::klass_range_start();
   ASSERT_TRUE(CompressedKlassPointers::is_encodable(addr));
-  addr = CompressedKlassPointers::klass_range_end() - 1;
+  addr = CompressedKlassPointers::klass_range_end() - alignment;
   ASSERT_TRUE(CompressedKlassPointers::is_encodable(addr));
 }

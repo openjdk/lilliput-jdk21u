@@ -40,14 +40,14 @@
  * @run main/native GTestWrapper --gtest_filter=metaspace* -XX:+UnlockDiagnosticVMOptions -XX:VerifyMetaspaceInterval=1
  */
 
-/* @test id=balanced-with-guards
- * @summary Run metaspace-related gtests with allocation guards enabled
+/* @test id=no-ccs
+ * @summary Run metaspace-related gtests with compressed class pointers off
  * @library /test/lib
  * @modules java.base/jdk.internal.misc
  *          java.xml
- * @requires vm.debug
+ * @requires vm.bits == 64
  * @requires vm.flagless
- * @run main/native GTestWrapper --gtest_filter=metaspace* -XX:VerifyMetaspaceInterval=1 -XX:+MetaspaceGuardAllocations
+ * @run main/native GTestWrapper --gtest_filter=metaspace* -XX:+UnlockDiagnosticVMOptions -XX:-UseCompressedClassPointers
  */
 
 /* @test id=balanced-no-ccs
@@ -58,4 +58,15 @@
  * @requires vm.bits == 64
  * @requires vm.flagless
  * @run main/native GTestWrapper --gtest_filter=metaspace* -XX:+UnlockDiagnosticVMOptions -XX:-UseCompressedClassPointers
+ */
+
+/* @test id=UseCompactObjectHeaders
+ * @summary Run metaspace-related gtests with tiny classpointers
+ * @library /test/lib
+ * @modules java.base/jdk.internal.misc
+ *          java.xml
+ * @requires vm.bits == 64
+ * @requires vm.flagless
+ * @requires vm.debug
+ * @run main/native GTestWrapper --gtest_filter=metaspace* -XX:+UnlockExperimentalVMOptions -XX:+UseCompactObjectHeaders
  */
