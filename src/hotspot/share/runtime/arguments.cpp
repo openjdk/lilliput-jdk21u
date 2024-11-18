@@ -3105,9 +3105,6 @@ jint Arguments::finalize_vm_init_args(bool patch_mod_javabase) {
   if (UseCompactObjectHeaders && !UseObjectMonitorTable) {
     FLAG_SET_DEFAULT(UseObjectMonitorTable, true);
   }
-  if (UseCompactObjectHeaders && !UseAltGCForwarding) {
-    FLAG_SET_DEFAULT(UseAltGCForwarding, true);
-  }
   if (UseCompactObjectHeaders && !UseCompressedClassPointers) {
     FLAG_SET_DEFAULT(UseCompressedClassPointers, true);
   }

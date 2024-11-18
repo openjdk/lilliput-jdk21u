@@ -394,7 +394,6 @@ uint G1FullCollector::truncate_parallel_cps() {
   return lowest_current;
 }
 
-template <bool ALT_FWD>
 void G1FullCollector::phase2c_prepare_serial_compaction_impl() {
   GCTraceTime(Debug, gc, phases) debug("Phase 2: Prepare serial compaction", scope()->timer());
   // At this point, we know that after parallel compaction there will be regions that
@@ -420,7 +419,7 @@ void G1FullCollector::phase2c_prepare_serial_compaction_impl() {
   serial_cp->initialize(start_hr);
 
   HeapWord* dense_prefix_top = compaction_top(start_hr);
-  G1SerialRePrepareClosure<ALT_FWD> re_prepare(serial_cp, dense_prefix_top);
+  G1SerialRePrepareClosure re_prepare(serial_cp, dense_prefix_top);
 
   for (uint i = start_serial + 1; i < _heap->max_reserved_regions(); i++) {
     if (is_compaction_target(i)) {
@@ -434,14 +433,9 @@ void G1FullCollector::phase2c_prepare_serial_compaction_impl() {
 }
 
 void G1FullCollector::phase2c_prepare_serial_compaction() {
-  if (UseAltGCForwarding) {
-    phase2c_prepare_serial_compaction_impl<true>();
-  } else {
-    phase2c_prepare_serial_compaction_impl<false>();
-  }
+  phase2c_prepare_serial_compaction_impl();
 }
 
-template <bool ALT_FWD>
 void G1FullCollector::phase2d_prepare_humongous_compaction_impl() {
   GCTraceTime(Debug, gc, phases) debug("Phase 2: Prepare humongous compaction", scope()->timer());
   G1FullGCCompactionPoint* serial_cp = serial_compaction_point();
@@ -460,7 +454,7 @@ void G1FullCollector::phase2d_prepare_humongous_compaction_impl() {
       region_index++;
       continue;
     } else if (hr->is_starts_humongous()) {
-      uint num_regions = humongous_cp->forward_humongous<ALT_FWD>(hr);
+      uint num_regions = humongous_cp->forward_humongous(hr);
       region_index += num_regions; // Skip over the continues humongous regions.
       continue;
     } else if (is_compaction_target(region_index)) {
@@ -472,11 +466,7 @@ void G1FullCollector::phase2d_prepare_humongous_compaction_impl() {
 }
 
 void G1FullCollector::phase2d_prepare_humongous_compaction() {
-  if (UseAltGCForwarding) {
-    phase2d_prepare_humongous_compaction_impl<true>();
-  } else {
-    phase2d_prepare_humongous_compaction_impl<false>();
-  }
+  phase2d_prepare_humongous_compaction_impl();
 }
 
 void G1FullCollector::phase3_adjust_pointers() {

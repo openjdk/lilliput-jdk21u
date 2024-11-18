@@ -162,8 +162,8 @@ void G1RemoveSelfForwardsTask::process_chunk(uint worker_id,
 
     {
       // Process marked object.
-      assert(obj->is_forwarded() && obj->forwardee() == obj, "must be self-forwarded");
-      obj->init_mark();
+      assert(obj->is_self_forwarded(), "must be self-forwarded");
+      obj->unset_self_forwarded();
       hr->update_bot_for_block(obj_addr, obj_end_addr);
 
       // Statistics

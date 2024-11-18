@@ -35,7 +35,6 @@
 #include "gc/g1/g1YoungGCEvacFailureInjector.inline.hpp"
 #include "gc/shared/continuationGCSupport.inline.hpp"
 #include "gc/shared/partialArrayTaskStepper.inline.hpp"
-#include "gc/shared/preservedMarks.inline.hpp"
 #include "gc/shared/stringdedup/stringDedup.hpp"
 #include "gc/shared/taskqueue.inline.hpp"
 #include "memory/allocation.inline.hpp"
@@ -56,7 +55,6 @@
 
 G1ParScanThreadState::G1ParScanThreadState(G1CollectedHeap* g1h,
                                            G1RedirtyCardsQueueSet* rdcqs,
-                                           PreservedMarks* preserved_marks,
                                            uint worker_id,
                                            uint num_workers,
                                            G1CollectionSet* collection_set,
@@ -86,7 +84,6 @@ G1ParScanThreadState::G1ParScanThreadState(G1CollectedHeap* g1h,
     _numa(g1h->numa()),
     _obj_alloc_stat(nullptr),
     EVAC_FAILURE_INJECTOR_ONLY(_evac_failure_inject_counter(0) COMMA)
-    _preserved_marks(preserved_marks),
     _evacuation_failed_info(),
     _evac_failure_regions(evac_failure_regions)
 {
@@ -206,7 +203,7 @@ void G1ParScanThreadState::do_oop_evac(T* p) {
   }
 
   markWord m = obj->mark();
-  if (m.is_marked()) {
+  if (m.is_forwarded()) {
     obj = obj->forwardee(m);
   } else {
     obj = do_copy_to_survivor_space(region_attr, obj, m);
@@ -451,15 +448,17 @@ oop G1ParScanThreadState::do_copy_to_survivor_space(G1HeapRegionAttr const regio
   assert(region_attr.is_in_cset(),
          "Unexpected region attr type: %s", region_attr.get_type_str());
 
-  // Get the klass once.  We'll need it again later, and this avoids
-  // re-decoding when it's compressed.
-  // NOTE: With compact headers, it is not safe to load the Klass* from o, because
-  // that would access the mark-word, and the mark-word might change at any time by
-  // concurrent promotion. The promoted mark-word would point to the forwardee, which
-  // may not yet have completed copying. Therefore we must load the Klass* from
-  // the mark-word that we have already loaded. This is safe, because we have checked
-  // that this is not yet forwarded in the caller.
-  Klass* klass = old->forward_safe_klass(old_mark);
+  // NOTE: With compact headers, it is not safe to load the Klass* from old, because
+  // that would access the mark-word, that might change at any time by concurrent
+  // workers.
+  // This mark word would refer to a forwardee, which may not yet have completed
+  // copying. Therefore we must load the Klass* from the mark-word that we already
+  // loaded. This is safe, because we only enter here if not yet forwarded.
+  assert(!old_mark.is_forwarded(), "precondition");
+  Klass* klass = UseCompactObjectHeaders
+      ? old_mark.klass()
+      : old->klass();
+
   const size_t word_sz = old->size_given_klass(klass);
 
   uint age = 0;
@@ -573,7 +572,6 @@ G1ParScanThreadState* G1ParScanThreadStateSet::state_for_worker(uint worker_id) 
   if (_states[worker_id] == nullptr) {
     _states[worker_id] =
       new G1ParScanThreadState(_g1h, rdcqs(),
-                               _preserved_marks_set.get(worker_id),
                                worker_id,
                                _num_workers,
                                _collection_set,
@@ -639,8 +637,6 @@ oop G1ParScanThreadState::handle_evacuation_failure_par(oop old, markWord m, siz
     // evacuation failure recovery.
     _g1h->mark_evac_failure_object(_worker_id, old, word_sz);
 
-    _preserved_marks->push_if_necessary(old, m);
-
     ContinuationGCSupport::transform_stack_chunk(old);
 
     _evacuation_failed_info.register_copy_failure(word_sz);
@@ -701,13 +697,11 @@ G1ParScanThreadStateSet::G1ParScanThreadStateSet(G1CollectedHeap* g1h,
     _g1h(g1h),
     _collection_set(collection_set),
     _rdcqs(G1BarrierSet::dirty_card_queue_set().allocator()),
-    _preserved_marks_set(true /* in_c_heap */),
     _states(NEW_C_HEAP_ARRAY(G1ParScanThreadState*, num_workers, mtGC)),
     _surviving_young_words_total(NEW_C_HEAP_ARRAY(size_t, collection_set->young_region_length() + 1, mtGC)),
     _num_workers(num_workers),
     _flushed(false),
     _evac_failure_regions(evac_failure_regions) {
-  _preserved_marks_set.init(num_workers);
   for (uint i = 0; i < num_workers; ++i) {
     _states[i] = nullptr;
   }
@@ -718,6 +712,4 @@ G1ParScanThreadStateSet::~G1ParScanThreadStateSet() {
   assert(_flushed, "thread local state from the per thread states should have been flushed");
   FREE_C_HEAP_ARRAY(G1ParScanThreadState*, _states);
   FREE_C_HEAP_ARRAY(size_t, _surviving_young_words_total);
-  _preserved_marks_set.assert_empty();
-  _preserved_marks_set.reclaim();
 }

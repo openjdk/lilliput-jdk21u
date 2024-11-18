@@ -41,7 +41,6 @@ void PreservedMarks::restore() {
   assert_empty();
 }
 
-template <bool ALT_FWD>
 void PreservedMarks::adjust_during_full_gc_impl() {
   StackIterator<OopAndMarkWord, mtGC> iter(_stack);
   while (!iter.is_empty()) {
@@ -49,17 +48,13 @@ void PreservedMarks::adjust_during_full_gc_impl() {
 
     oop obj = elem->get_oop();
     if (obj->is_forwarded()) {
-      elem->set_oop(SlidingForwarding::forwardee<ALT_FWD>(obj));
+      elem->set_oop(SlidingForwarding::forwardee(obj));
     }
   }
 }
 
 void PreservedMarks::adjust_during_full_gc() {
-  if (UseAltGCForwarding) {
-    adjust_during_full_gc_impl<true>();
-  } else {
-    adjust_during_full_gc_impl<false>();
-  }
+  adjust_during_full_gc_impl();
 }
 
 void PreservedMarks::restore_and_increment(volatile size_t* const total_size_addr) {

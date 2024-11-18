@@ -109,20 +109,20 @@ class markWord {
   // Constants
   static const int age_bits                       = 4;
   static const int lock_bits                      = 2;
-  static const int self_forwarded_bits            = 1;
-  static const int max_hash_bits                  = BitsPerWord - age_bits - lock_bits - self_forwarded_bits;
+  static const int self_fwd_bits                  = 1;
+  static const int max_hash_bits                  = BitsPerWord - age_bits - lock_bits - self_fwd_bits;
   static const int hash_bits                      = max_hash_bits > 31 ? 31 : max_hash_bits;
   static const int unused_gap_bits                = LP64_ONLY(4) NOT_LP64(0);  // Reserved for Valhalla.
 
   static const int lock_shift                     = 0;
-  static const int self_forwarded_shift           = lock_shift + lock_bits;
-  static const int age_shift                      = self_forwarded_shift + self_forwarded_bits;
+  static const int self_fwd_shift                 = lock_shift + lock_bits;
+  static const int age_shift                      = self_fwd_shift + self_fwd_bits;
   static const int hash_shift                     = age_shift + age_bits + unused_gap_bits;
 
   static const uintptr_t lock_mask                = right_n_bits(lock_bits);
   static const uintptr_t lock_mask_in_place       = lock_mask << lock_shift;
-  static const uintptr_t self_forwarded_mask      = right_n_bits(self_forwarded_bits);
-  static const uintptr_t self_forwarded_mask_in_place = self_forwarded_mask << self_forwarded_shift;
+  static const uintptr_t self_fwd_mask            = right_n_bits(self_fwd_bits);
+  static const uintptr_t self_fwd_mask_in_place   = self_fwd_mask << self_fwd_shift;
   static const uintptr_t age_mask                 = right_n_bits(age_bits);
   static const uintptr_t age_mask_in_place        = age_mask << age_shift;
   static const uintptr_t hash_mask                = right_n_bits(hash_bits);
@@ -163,6 +163,10 @@ class markWord {
   }
   bool is_marked()   const {
     return (mask_bits(value(), lock_mask_in_place) == marked_value);
+  }
+  bool is_forwarded() const {
+    // Returns true for normal forwarded (0b011) and self-forwarded (0b1xx).
+    return mask_bits(value(), lock_mask_in_place | self_fwd_mask_in_place) >= static_cast<intptr_t>(marked_value);
   }
   bool is_neutral()  const {  // Not locked, or marked - a "clean" neutral state
     return (mask_bits(value(), lock_mask_in_place) == unlocked_value);
@@ -255,7 +259,7 @@ class markWord {
   }
 
   // used to encode pointers during GC
-  markWord clear_lock_bits() { return markWord(value() & ~lock_mask_in_place); }
+  markWord clear_lock_bits() const { return markWord(value() & ~lock_mask_in_place); }
 
   // age operations
   markWord set_marked()   { return markWord((value() & ~lock_mask_in_place) | marked_value); }
@@ -298,20 +302,26 @@ class markWord {
   inline static markWord encode_pointer_as_mark(void* p) { return from_pointer(p).set_marked(); }
 
   // Recover address of oop from encoded form used in mark
-  inline void* decode_pointer() { return (void*)clear_lock_bits().value(); }
+  inline void* decode_pointer() const { return (void*)clear_lock_bits().value(); }
 
-#ifdef _LP64
-  inline bool self_forwarded() const {
-    bool self_fwd = mask_bits(value(), self_forwarded_mask_in_place) != 0;
-    assert(!self_fwd || UseAltGCForwarding, "Only set self-fwd bit when using alt GC forwarding");
-    return self_fwd;
+  inline bool is_self_forwarded() const {
+    NOT_LP64(assert(LockingMode != LM_LEGACY, "incorrect with LM_LEGACY on 32 bit");)
+    return mask_bits(value(), self_fwd_mask_in_place) != 0;
   }
 
   inline markWord set_self_forwarded() const {
-    assert(UseAltGCForwarding, "Only call this with alt GC forwarding");
-    return markWord(value() | self_forwarded_mask_in_place | marked_value);
+    NOT_LP64(assert(LockingMode != LM_LEGACY, "incorrect with LM_LEGACY on 32 bit");)
+    return markWord(value() | self_fwd_mask_in_place);
   }
-#endif
+
+  inline markWord unset_self_forwarded() const {
+    NOT_LP64(assert(LockingMode != LM_LEGACY, "incorrect with LM_LEGACY on 32 bit");)
+    return markWord(value() & ~self_fwd_mask_in_place);
+  }
+
+  inline oop forwardee() const {
+    return cast_to_oop(decode_pointer());
+  }
 };
 
 // Support atomic operations.

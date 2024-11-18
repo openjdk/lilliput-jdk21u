@@ -256,7 +256,7 @@ Klass* oopDesc::forward_safe_klass_impl(markWord m) const {
   if (m.is_marked()) {
     oop fwd = forwardee(m);
     markWord m2 = fwd->mark();
-    assert(!m2.is_marked() || m2.self_forwarded(), "no double forwarding: this: " PTR_FORMAT " (" INTPTR_FORMAT "), fwd: " PTR_FORMAT " (" INTPTR_FORMAT ")", p2i(this), m.value(), p2i(fwd), m2.value());
+    assert(!m2.is_marked() || m2.is_self_forwarded(), "no double forwarding: this: " PTR_FORMAT " (" INTPTR_FORMAT "), fwd: " PTR_FORMAT " (" INTPTR_FORMAT ")", p2i(this), m.value(), p2i(fwd), m2.value());
     m = m2;
   }
   return m.actual_mark().klass();
@@ -362,84 +362,53 @@ bool oopDesc::is_gc_marked() const {
 bool oopDesc::is_forwarded() const {
   // The extra heap check is needed since the obj might be locked, in which case the
   // mark would point to a stack location and have the sentinel bit cleared
-  return mark().is_marked();
+  return mark().is_forwarded();
+}
+
+bool oopDesc::is_self_forwarded() const {
+  return mark().is_self_forwarded();
 }
 
 // Used by scavengers
 void oopDesc::forward_to(oop p) {
-  assert(p != cast_to_oop(this) || !UseAltGCForwarding, "Must not be called with self-forwarding");
+  assert(p != cast_to_oop(this), "Must not be called with self-forwarding");
   markWord m = markWord::encode_pointer_as_mark(p);
   assert(forwardee(m) == p, "encoding must be reversible");
   set_mark(m);
 }
 
 void oopDesc::forward_to_self() {
-#ifdef _LP64
-  if (UseAltGCForwarding) {
-    markWord m = mark();
-    // If mark is displaced, we need to preserve the real header during GC.
-    // It will be restored to the displaced header after GC.
-    assert(SafepointSynchronize::is_at_safepoint(), "we can only safely fetch the displaced header at safepoint");
-    if (m.has_displaced_mark_helper()) {
-      m = m.displaced_mark_helper();
-    }
-    m = m.set_self_forwarded();
-    assert(forwardee(m) == cast_to_oop(this), "encoding must be reversible");
-    set_mark(m);
-  } else
-#endif
-  {
-    forward_to(oop(this));
-  }
+  set_mark(mark().set_self_forwarded());
 }
 
-oop oopDesc::forward_to_atomic(oop p, markWord compare, atomic_memory_order order) {
-  assert(p != cast_to_oop(this) || !UseAltGCForwarding, "Must not be called with self-forwarding");
-  markWord m = markWord::encode_pointer_as_mark(p);
-  assert(m.decode_pointer() == p, "encoding must be reversible");
-  markWord old_mark = cas_set_mark(m, compare, order);
+oop oopDesc::cas_set_forwardee(markWord new_mark, markWord compare, atomic_memory_order order) {
+  markWord old_mark = cas_set_mark(new_mark, compare, order);
   if (old_mark == compare) {
     return nullptr;
   } else {
+    assert(old_mark.is_forwarded(), "must be forwarded here");
     return forwardee(old_mark);
   }
 }
 
-oop oopDesc::forward_to_self_atomic(markWord compare, atomic_memory_order order) {
-#ifdef _LP64
-  if (UseAltGCForwarding) {
-    markWord m = compare;
-    // If mark is displaced, we need to preserve the real header during GC.
-    // It will be restored to the displaced header after GC.
-    assert(SafepointSynchronize::is_at_safepoint(), "we can only safely fetch the displaced header at safepoint");
-    if (m.has_displaced_mark_helper()) {
-      m = m.displaced_mark_helper();
-    }
-    m = m.set_self_forwarded();
-    assert(forwardee(m) == cast_to_oop(this), "encoding must be reversible");
-    markWord old_mark = cas_set_mark(m, compare, order);
-    if (old_mark == compare) {
-      return nullptr;
-    } else {
-      assert(old_mark.is_marked(), "must be marked here");
-      return forwardee(old_mark);
-    }
-  } else
-#endif
-  {
-    return forward_to_atomic(cast_to_oop(this), compare, order);
-  }
+oop oopDesc::forward_to_atomic(oop p, markWord compare, atomic_memory_order order) {
+  markWord m = markWord::encode_pointer_as_mark(p);
+  assert(forwardee(m) == p, "encoding must be reversible");
+  return cas_set_forwardee(m, compare, order);
 }
 
-oop oopDesc::forwardee(markWord header) const {
-  assert(header.is_marked(), "only decode when actually forwarded");
-#ifdef _LP64
-  if (header.self_forwarded()) {
+oop oopDesc::forward_to_self_atomic(markWord old_mark, atomic_memory_order order) {
+  markWord new_mark = old_mark.set_self_forwarded();
+  assert(forwardee(new_mark) == cast_to_oop(this), "encoding must be reversible");
+  return cas_set_forwardee(new_mark, old_mark, order);
+}
+
+oop oopDesc::forwardee(markWord mark) const {
+  assert(mark.is_forwarded(), "only decode when actually forwarded");
+  if (mark.is_self_forwarded()) {
     return cast_to_oop(this);
-  } else
-#endif
-  {
-    return cast_to_oop(header.decode_pointer());
+  } else {
+    return mark.forwardee();
   }
 }
 
@@ -448,6 +417,10 @@ oop oopDesc::forwardee(markWord header) const {
 // It does need to clear the low two locking- and GC-related bits.
 oop oopDesc::forwardee() const {
   return forwardee(mark());
+}
+
+void oopDesc::unset_self_forwarded() {
+  set_mark(mark().unset_self_forwarded());
 }
 
 // The following method needs to be MT safe.

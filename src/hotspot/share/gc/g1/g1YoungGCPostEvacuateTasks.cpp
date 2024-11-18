@@ -35,7 +35,6 @@
 #include "gc/g1/g1ParScanThreadState.hpp"
 #include "gc/g1/g1RemSet.hpp"
 #include "gc/g1/g1YoungGCPostEvacuateTasks.hpp"
-#include "gc/shared/preservedMarks.inline.hpp"
 #include "jfr/jfrEvents.hpp"
 #include "runtime/threads.hpp"
 #include "runtime/threadSMR.hpp"
@@ -274,27 +273,6 @@ public:
     _humongous_regions_reclaimed = cl.humongous_regions_reclaimed();
     _bytes_freed = cl.bytes_freed();
   }
-};
-
-class G1PostEvacuateCollectionSetCleanupTask2::RestorePreservedMarksTask : public G1AbstractSubTask {
-  PreservedMarksSet* _preserved_marks;
-  WorkerTask* _task;
-
-public:
-  RestorePreservedMarksTask(PreservedMarksSet* preserved_marks) :
-    G1AbstractSubTask(G1GCPhaseTimes::RestorePreservedMarks),
-    _preserved_marks(preserved_marks),
-    _task(preserved_marks->create_task()) { }
-
-  virtual ~RestorePreservedMarksTask() {
-    delete _task;
-  }
-
-  double worker_cost() const override {
-    return _preserved_marks->num();
-  }
-
-  void do_work(uint worker_id) override { _task->work(worker_id); }
 };
 
 class RedirtyLoggedCardTableEntryClosure : public G1CardTableEntryClosure {
@@ -725,7 +703,6 @@ G1PostEvacuateCollectionSetCleanupTask2::G1PostEvacuateCollectionSetCleanupTask2
   }
 
   if (evac_failure_regions->evacuation_failed()) {
-    add_parallel_task(new RestorePreservedMarksTask(per_thread_states->preserved_marks_set()));
     // Keep marks on bitmaps in retained regions during concurrent start - they will all be old.
     if (!G1CollectedHeap::heap()->collector_state()->in_concurrent_start_gc()) {
       add_parallel_task(new ClearRetainedRegionBitmaps(evac_failure_regions));

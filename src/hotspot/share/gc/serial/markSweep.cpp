@@ -141,9 +141,8 @@ template <class T> void MarkSweep::follow_root(T* p) {
 void MarkSweep::FollowRootClosure::do_oop(oop* p)       { follow_root(p); }
 void MarkSweep::FollowRootClosure::do_oop(narrowOop* p) { follow_root(p); }
 
-template <bool ALT_FWD>
 void PreservedMark::adjust_pointer() {
-  MarkSweep::adjust_pointer<ALT_FWD>(&_obj);
+  MarkSweep::adjust_pointer(&_obj);
 }
 
 void PreservedMark::restore() {
@@ -202,27 +201,22 @@ void MarkAndPushClosure::do_oop_work(T* p)            { MarkSweep::mark_and_push
 void MarkAndPushClosure::do_oop(      oop* p)         { do_oop_work(p); }
 void MarkAndPushClosure::do_oop(narrowOop* p)         { do_oop_work(p); }
 
-template <bool ALT_FWD>
 void MarkSweep::adjust_marks_impl() {
   // adjust the oops we saved earlier
   for (size_t i = 0; i < _preserved_count; i++) {
-    _preserved_marks[i].adjust_pointer<ALT_FWD>();
+    _preserved_marks[i].adjust_pointer();
   }
 
   // deal with the overflow stack
   StackIterator<PreservedMark, mtGC> iter(_preserved_overflow_stack);
   while (!iter.is_empty()) {
     PreservedMark* p = iter.next_addr();
-    p->adjust_pointer<ALT_FWD>();
+    p->adjust_pointer();
   }
 }
 
 void MarkSweep::adjust_marks() {
-  if (UseAltGCForwarding) {
-    adjust_marks_impl<true>();
-  } else {
-    adjust_marks_impl<false>();
-  }
+  adjust_marks_impl();
 }
 
 void MarkSweep::restore_marks() {

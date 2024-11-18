@@ -40,11 +40,10 @@
 #include "memory/iterator.inline.hpp"
 #include "runtime/atomic.hpp"
 
-template <bool ALT_FWD>
 class G1AdjustLiveClosure : public StackObj {
-  G1AdjustClosure<ALT_FWD>* _adjust_closure;
+  G1AdjustClosure* _adjust_closure;
 public:
-  G1AdjustLiveClosure(G1AdjustClosure<ALT_FWD>* cl) :
+  G1AdjustLiveClosure(G1AdjustClosure* cl) :
     _adjust_closure(cl) { }
 
   size_t apply(oop object) {
@@ -63,17 +62,12 @@ class G1AdjustRegionClosure : public HeapRegionClosure {
     _worker_id(worker_id) { }
 
   bool do_heap_region(HeapRegion* r) {
-    if (UseAltGCForwarding) {
-      return do_heap_region_impl<true>(r);
-    } else {
-      return do_heap_region_impl<false>(r);
-    }
+    return do_heap_region_impl(r);
   }
 
 private:
-  template <bool ALT_FWD>
   bool do_heap_region_impl(HeapRegion* r) {
-    G1AdjustClosure<ALT_FWD> cl(_collector);
+    G1AdjustClosure cl(_collector);
     if (r->is_humongous()) {
       // Special handling for humongous regions to get somewhat better
       // work distribution.
@@ -81,7 +75,7 @@ private:
       obj->oop_iterate(&cl, MemRegion(r->bottom(), r->top()));
     } else if (!r->is_free()) {
       // Free regions do not contain objects to iterate. So skip them.
-      G1AdjustLiveClosure<ALT_FWD> adjust(&cl);
+      G1AdjustLiveClosure adjust(&cl);
       r->apply_to_marked_objects(_bitmap, &adjust);
     }
     return false;
@@ -96,7 +90,6 @@ G1FullGCAdjustTask::G1FullGCAdjustTask(G1FullCollector* collector) :
   ClassLoaderDataGraph::verify_claimed_marks_cleared(ClassLoaderData::_claim_stw_fullgc_adjust);
 }
 
-template <bool ALT_FWD>
 void G1FullGCAdjustTask::work_impl(uint worker_id) {
   Ticks start = Ticks::now();
   ResourceMark rm;
@@ -105,7 +98,7 @@ void G1FullGCAdjustTask::work_impl(uint worker_id) {
   G1FullGCMarker* marker = collector()->marker(worker_id);
   marker->preserved_stack()->adjust_during_full_gc();
 
-  G1AdjustClosure<ALT_FWD> adjust(collector());
+  G1AdjustClosure adjust(collector());
   {
     // Adjust the weak roots.
     AlwaysTrueClosure always_alive;
@@ -123,9 +116,5 @@ void G1FullGCAdjustTask::work_impl(uint worker_id) {
 }
 
 void G1FullGCAdjustTask::work(uint worker_id) {
-  if (UseAltGCForwarding) {
-    work_impl<true>(worker_id);
-  } else {
-    work_impl<false>(worker_id);
-  }
+  work_impl(worker_id);
 }
