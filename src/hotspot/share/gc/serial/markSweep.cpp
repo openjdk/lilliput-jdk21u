@@ -146,7 +146,7 @@ void PreservedMark::adjust_pointer() {
 }
 
 void PreservedMark::restore() {
-  _obj->set_mark(_mark);
+  _obj->set_mark(_mark.hash_copy_hashctrl_from(_obj->mark()));
 }
 
 // We preserve the mark which should be replaced at the end and the location
@@ -178,8 +178,11 @@ void MarkSweep::mark_object(oop obj) {
   // some marks may contain information we need to preserve so we store them away
   // and overwrite the mark.  We'll restore it at the end of markSweep.
   markWord mark = obj->mark();
-  obj->set_mark(obj->prototype_mark().set_marked());
-
+  if (UseCompactObjectHeaders) {
+    obj->set_mark(obj->mark().set_marked());
+  } else {
+    obj->set_mark(obj->prototype_mark().set_marked());
+  }
   if (obj->mark_must_be_preserved(mark)) {
     preserve_mark(obj, mark);
   }

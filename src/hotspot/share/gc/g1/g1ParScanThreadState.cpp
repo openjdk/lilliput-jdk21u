@@ -448,6 +448,8 @@ oop G1ParScanThreadState::do_copy_to_survivor_space(G1HeapRegionAttr const regio
   assert(region_attr.is_in_cset(),
          "Unexpected region attr type: %s", region_attr.get_type_str());
 
+  assert(!old_mark.is_marked(), "must not yet be forwarded");
+
   // NOTE: With compact headers, it is not safe to load the Klass* from old, because
   // that would access the mark-word, that might change at any time by concurrent
   // workers.
@@ -459,7 +461,8 @@ oop G1ParScanThreadState::do_copy_to_survivor_space(G1HeapRegionAttr const regio
       ? old_mark.klass()
       : old->klass();
 
-  const size_t word_sz = old->size_given_klass(klass);
+  const size_t old_size = old->size_given_mark_and_klass(old_mark, klass);
+  const size_t word_sz = old->copy_size(old_size, old_mark);
 
   uint age = 0;
   G1HeapRegionAttr dest_attr = next_region_attr(region_attr, old_mark, age);
@@ -492,7 +495,7 @@ oop G1ParScanThreadState::do_copy_to_survivor_space(G1HeapRegionAttr const regio
 
   // We're going to allocate linearly, so might as well prefetch ahead.
   Prefetch::write(obj_ptr, PrefetchCopyIntervalInBytes);
-  Copy::aligned_disjoint_words(cast_from_oop<HeapWord*>(old), obj_ptr, word_sz);
+  Copy::aligned_disjoint_words(cast_from_oop<HeapWord*>(old), obj_ptr, old_size);
 
   const oop obj = cast_to_oop(obj_ptr);
   // Because the forwarding is done with memory_order_relaxed there is no
@@ -508,6 +511,9 @@ oop G1ParScanThreadState::do_copy_to_survivor_space(G1HeapRegionAttr const regio
              (!from_region->is_young() && young_index == 0), "invariant" );
       _surviving_young_words[young_index] += word_sz;
     }
+
+    // Initialize i-hash if necessary
+    obj->initialize_hash_if_necessary(old);
 
     if (dest_attr.is_young()) {
       if (age < markWord::max_age) {

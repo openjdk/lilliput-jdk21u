@@ -81,6 +81,7 @@ public class InstanceKlass extends Klass {
     nonstaticOopMapSize  = new CIntField(type.getCIntegerField("_nonstatic_oop_map_size"), 0);
     initState            = new CIntField(type.getCIntegerField("_init_state"), 0);
     itableLen            = new CIntField(type.getCIntegerField("_itable_len"), 0);
+    hashOffset           = new CIntField(type.getCIntegerField("_hash_offset"), 0);
     if (VM.getVM().isJvmtiSupported()) {
       breakpoints        = type.getAddressField("_breakpoints");
     }
@@ -144,6 +145,7 @@ public class InstanceKlass extends Klass {
   private static CIntField nonstaticOopMapSize;
   private static CIntField initState;
   private static CIntField itableLen;
+  private static CIntField hashOffset;
   private static AddressField breakpoints;
 
   // type safe enum for ClassState from instanceKlass.hpp
@@ -234,7 +236,15 @@ public class InstanceKlass extends Klass {
   private static long headerSize;
 
   public long getObjectSize(Oop object) {
-    return getSizeHelper() * VM.getVM().getAddressSize();
+    long baseSize = getSizeHelper() * VM.getVM().getAddressSize();
+    if (VM.getVM().isCompactObjectHeadersEnabled()) {
+      Mark mark = object.getMark();
+      if (mark.isCopiedHash() && (getHashOffset() + 4 /* size of hash field */) > baseSize) {
+        // Needs extra word for identity hash-code.
+        return baseSize + VM.getVM().getBytesPerWord();
+      }
+    }
+    return baseSize;
   }
 
   public long getSize() { // in number of bytes
@@ -367,6 +377,7 @@ public class InstanceKlass extends Klass {
   public long      getStaticOopFieldCount() { return                staticOopFieldCount.getValue(this); }
   public long      getNonstaticOopMapSize() { return                nonstaticOopMapSize.getValue(this); }
   public long      getItableLen()           { return                itableLen.getValue(this); }
+  public long      getHashOffset()          { return                hashOffset.getValue(this); }
   public long      majorVersion()           { return                getConstants().majorVersion(); }
   public long      minorVersion()           { return                getConstants().minorVersion(); }
   public Symbol    getGenericSignature()    { return                getConstants().getGenericSignature(); }

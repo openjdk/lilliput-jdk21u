@@ -184,4 +184,17 @@ void ContiguousSpace::oop_since_save_marks_iterate(OopClosureType* blk) {
   set_saved_mark_word(p);
 }
 
+template<class CL>
+void ContiguousSpace::object_iterate_sized(CL* blk) {
+  HeapWord* addr = bottom();
+  oop last = nullptr;
+  while (addr < top()) {
+    oop obj = cast_to_oop(addr);
+    size_t size = blk->do_object(obj);
+    assert(!UseCompactObjectHeaders || obj->mark().narrow_klass() != 0, "null narrow klass, mark: " INTPTR_FORMAT ", last mark: " INTPTR_FORMAT, obj->mark().value(), last->mark().value());
+    addr += size;
+    last = obj;
+  }
+}
+
 #endif // SHARE_GC_SHARED_SPACE_INLINE_HPP

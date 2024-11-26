@@ -236,7 +236,7 @@ class Generation: public CHeapObj<mtGC> {
   //
   // The "obj_size" argument is just obj->size(), passed along so the caller can
   // avoid repeating the virtual call to retrieve it.
-  virtual oop promote(oop obj, size_t obj_size);
+  virtual oop promote(oop obj, size_t old_size, size_t new_size);
 
   // Returns "true" iff collect() should subsequently be called on this
   // this generation. See comment below.

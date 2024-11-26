@@ -158,6 +158,10 @@ inline zoffset_end ZPage::top() const {
   return _top;
 }
 
+inline zaddress ZPage::top_addr() const {
+  return ZOffset::address(to_zoffset(top()));
+}
+
 inline size_t ZPage::remaining() const {
   return end() - top();
 }

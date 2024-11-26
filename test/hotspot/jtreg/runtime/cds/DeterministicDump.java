@@ -58,6 +58,8 @@ public class DeterministicDump {
             String sign = (compressed) ?  "+" : "-";
             baseArgs.add("-XX:" + sign + "UseCompressedOops");
             baseArgs.add("-XX:" + sign + "UseCompressedClassPointers");
+            baseArgs.add("-XX:+UnlockExperimentalVMOptions");
+            baseArgs.add("-XX:-UseCompactObjectHeaders");
         }
 
         String baseArchive = dump(baseArgs);

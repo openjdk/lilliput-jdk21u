@@ -1056,7 +1056,9 @@ class ArchiveBuilder::CDSMapLogger : AllStatic {
         ResourceMark rm;
         log_info(cds, map)(PTR_FORMAT ": @@ Object %s",
                            p2i(to_requested(start)), original_oop->klass()->external_name());
-        byte_size = original_oop->size() * BytesPerWord;
+	size_t old_size = original_oop->size();
+        size_t new_size = original_oop->copy_size(old_size, original_oop->mark());
+        byte_size = new_size * BytesPerWord;
       } else if (start == ArchiveHeapWriter::buffered_heap_roots_addr()) {
         // HeapShared::roots() is copied specially so it doesn't exist in
         // HeapShared::OriginalObjectTable. See HeapShared::copy_roots().

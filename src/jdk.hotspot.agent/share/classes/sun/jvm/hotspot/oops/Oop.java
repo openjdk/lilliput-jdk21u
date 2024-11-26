@@ -137,6 +137,9 @@ public class Oop {
 
   /** Identity hash in the target VM */
   public long identityHash() {
+    if (VM.getVM().isCompactObjectHeadersEnabled()) {
+        throw new InternalError("Not yet implemented");
+    }
     Mark mark = getMark();
     if (mark.isUnlocked() && (!mark.hasNoHash())) {
       return (int) mark.hash();

@@ -143,8 +143,8 @@ bool Generation::promotion_attempt_is_safe(size_t max_promotion_in_bytes) const 
 }
 
 // Ignores "ref" and calls allocate().
-oop Generation::promote(oop obj, size_t obj_size) {
-  assert(obj_size == obj->size(), "bad obj_size passed in");
+oop Generation::promote(oop obj, size_t old_size, size_t new_size) {
+  assert(old_size == obj->size(), "bad obj_size passed in");
 
 #ifndef PRODUCT
   if (GenCollectedHeap::heap()->promotion_should_fail()) {
@@ -153,21 +153,23 @@ oop Generation::promote(oop obj, size_t obj_size) {
 #endif  // #ifndef PRODUCT
 
   // Allocate new object.
-  HeapWord* result = allocate(obj_size, false);
+  HeapWord* result = allocate(new_size, false);
   if (result == nullptr) {
     // Promotion of obj into gen failed.  Try to expand and allocate.
-    result = expand_and_allocate(obj_size, false);
+    result = expand_and_allocate(new_size, false);
     if (result == nullptr) {
       return nullptr;
     }
   }
 
   // Copy to new location.
-  Copy::aligned_disjoint_words(cast_from_oop<HeapWord*>(obj), result, obj_size);
+  Copy::aligned_disjoint_words(cast_from_oop<HeapWord*>(obj), result, old_size);
   oop new_obj = cast_to_oop<HeapWord*>(result);
 
   // Transform object if it is a stack chunk.
   ContinuationGCSupport::transform_stack_chunk(new_obj);
+
+  new_obj->initialize_hash_if_necessary(obj);
 
   return new_obj;
 }

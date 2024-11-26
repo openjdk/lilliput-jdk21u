@@ -873,19 +873,19 @@ void DefNewGeneration::remove_forwarding_pointers() {
   // Will enter Full GC soon due to failed promotion. Must reset the mark word
   // of objs in young-gen so that no objs are marked (forwarded) when Full GC
   // starts. (The mark word is overloaded: `is_marked()` == `is_forwarded()`.)
-  struct ResetForwardedMarkWord : ObjectClosure {
-    void do_object(oop obj) override {
+  struct ResetForwardedMarkWord {
+    size_t do_object(oop obj) {
       if (obj->is_self_forwarded()) {
+	tty->print_cr("reset self fwd: " PTR_FORMAT ", mark: " INTPTR_FORMAT, p2i(obj), obj->mark().value());
         obj->unset_self_forwarded();
       } else if (obj->is_forwarded()) {
-        // To restore the klass-bits in the header.
-        // Needed for object iteration to work properly.
-        obj->set_mark(obj->forwardee()->prototype_mark());
+        obj->forward_safe_init_mark();
       }
+      return obj->size();
     }
   } cl;
-  eden()->object_iterate(&cl);
-  from()->object_iterate(&cl);
+  eden()->object_iterate_sized(&cl);
+  from()->object_iterate_sized(&cl);
 }
 
 void DefNewGeneration::handle_promotion_failure(oop old) {
@@ -911,7 +911,8 @@ void DefNewGeneration::handle_promotion_failure(oop old) {
 oop DefNewGeneration::copy_to_survivor_space(oop old) {
   assert(is_in_reserved(old) && !old->is_forwarded(),
          "shouldn't be scavenging this oop");
-  size_t s = old->size();
+  size_t old_size = old->size();
+  size_t s = old->copy_size(old_size, old->mark());
   oop obj = nullptr;
 
   // Try allocating obj in to-space (unless too old)
@@ -922,7 +923,7 @@ oop DefNewGeneration::copy_to_survivor_space(oop old) {
   bool new_obj_is_tenured = false;
   // Otherwise try allocating obj tenured
   if (obj == nullptr) {
-    obj = _old_gen->promote(old, s);
+    obj = _old_gen->promote(old, old_size, s);
     if (obj == nullptr) {
       handle_promotion_failure(old);
       return old;
@@ -934,7 +935,7 @@ oop DefNewGeneration::copy_to_survivor_space(oop old) {
     Prefetch::write(obj, interval);
 
     // Copy obj
-    Copy::aligned_disjoint_words(cast_from_oop<HeapWord*>(old), cast_from_oop<HeapWord*>(obj), s);
+    Copy::aligned_disjoint_words(cast_from_oop<HeapWord*>(old), cast_from_oop<HeapWord*>(obj), old_size);
 
     ContinuationGCSupport::transform_stack_chunk(obj);
 
@@ -943,8 +944,10 @@ oop DefNewGeneration::copy_to_survivor_space(oop old) {
     age_table()->add(obj, s);
   }
 
+  bool expanded = obj->initialize_hash_if_necessary(old);
+
   // Done, insert forward pointer to obj in this header
-  old->forward_to(obj);
+  old->forward_to(obj, expanded);
 
   if (SerialStringDedup::is_candidate_from_evacuation(obj, new_obj_is_tenured)) {
     // Record old; request adds a new weak reference, which reference

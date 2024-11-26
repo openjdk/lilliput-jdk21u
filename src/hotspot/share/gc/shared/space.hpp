@@ -406,7 +406,7 @@ protected:
   // and then forward.  In either case, returns the new value of "compact_top".
   // Invokes the "alloc_block" function of the then-current compaction
   // space.
-  HeapWord* forward(oop q, size_t size, CompactPoint* cp,
+  HeapWord* forward(oop q, size_t old_size, size_t new_size, CompactPoint* cp,
                     HeapWord* compact_top);
 
   // Accessors
@@ -454,6 +454,8 @@ protected:
   // Iteration
   void oop_iterate(OopIterateClosure* cl) override;
   void object_iterate(ObjectClosure* blk) override;
+  template<class CL>
+  void object_iterate_sized(CL* blk);
 
   // Compaction support
   void reset_after_compaction() {
