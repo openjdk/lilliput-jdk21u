@@ -432,6 +432,14 @@ C2V_VMENTRY_NULL(jobject, getConstantPool, (JNIEnv* env, jobject, ARGUMENT_PAIR(
   return JVMCIENV->get_jobject(result);
 }
 
+int klass_offset() {
+  if (UseCompactObjectHeaders) {
+    return 1;
+  } else {
+    return oopDesc::klass_offset_in_bytes();
+  }
+}
+
 C2V_VMENTRY_NULL(jobject, getResolvedJavaType0, (JNIEnv* env, jobject, jobject base, jlong offset, jboolean compressed))
   JVMCIObject base_object = JVMCIENV->wrap(base);
   if (base_object.is_null()) {
@@ -440,7 +448,7 @@ C2V_VMENTRY_NULL(jobject, getResolvedJavaType0, (JNIEnv* env, jobject, jobject b
 
   const char* base_desc = nullptr;
   JVMCIKlassHandle klass(THREAD);
-  if (offset == oopDesc::klass_offset_in_bytes()) {
+  if (offset == klass_offset()) {
     if (JVMCIENV->isa_HotSpotObjectConstantImpl(base_object)) {
       Handle base_oop = JVMCIENV->asConstant(base_object, JVMCI_CHECK_NULL);
       klass = base_oop->klass();

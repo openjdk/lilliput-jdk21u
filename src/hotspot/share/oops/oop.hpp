@@ -361,20 +361,8 @@ public:
   // for code generation
   static int mark_offset_in_bytes()      { return (int)offset_of(oopDesc, _mark); }
   static int klass_offset_in_bytes()     {
-#ifdef _LP64
-    if (UseCompactObjectHeaders) {
-      // NOTE: The only places where this is used with compact headers are the C2
-      // compiler and JVMCI, and even there we don't use it to access the (narrow)Klass*
-      // directly. It is used only as a placeholder to identify the special memory slice
-      // containing Klass* info. This value could be any value that is not a valid
-      // field offset. Use an offset halfway into the markWord, as the markWord is never
-      // partially loaded from C2 and JVMCI.
-      return mark_offset_in_bytes() + 4;
-    } else
-#endif
-    {
-      return (int)offset_of(oopDesc, _metadata._klass);
-    }
+    assert(!UseCompactObjectHeaders, "don't use klass_offset_in_bytes with compact headers");
+    return (int)offset_of(oopDesc, _metadata._klass);
   }
   static int klass_gap_offset_in_bytes() {
     assert(has_klass_gap(), "only applicable to compressed klass pointers");

@@ -160,8 +160,8 @@ class markWord {
   // We store the (narrow) Klass* in the bits 43 to 64.
 
   // These are for bit-precise extraction of the narrow Klass* from the 64-bit Markword
-  static constexpr int klass_shift                = hash_shift + hash_bits;
-  static constexpr int klass_bits                 = 22;
+  static constexpr int klass_shift                = hashctrl_shift + hashctrl_bits;
+  static constexpr int klass_bits                 = 19;
   static constexpr uintptr_t klass_mask           = right_n_bits(klass_bits);
   static constexpr uintptr_t klass_mask_in_place  = klass_mask << klass_shift;
 #endif

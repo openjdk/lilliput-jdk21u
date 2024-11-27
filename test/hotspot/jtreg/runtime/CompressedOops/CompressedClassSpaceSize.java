@@ -78,11 +78,11 @@ public class CompressedClassSpaceSize {
 
         // Make sure the maximum size is set correctly and printed
         pb = ProcessTools.createLimitedTestJavaProcessBuilder("-XX:+UnlockDiagnosticVMOptions",
-                                                              "-XX:CompressedClassSpaceSize=3g",
+                                                              "-XX:CompressedClassSpaceSize=128m",
                                                               "-Xlog:gc+metaspace=trace",
                                                               "-version");
         output = new OutputAnalyzer(pb.start());
-        output.shouldMatch("Compressed class space.*3221225472")
+        output.shouldMatch("Compressed class space.*134217728")
               .shouldHaveExitValue(0);
 
 
