@@ -76,26 +76,43 @@ static void assert_correct_hash_transition(markWord old_mark, markWord new_mark)
 
 void oopDesc::set_mark(markWord m) {
   assert_correct_hash_transition(mark(), m);
+  if (UseCompactObjectHeaders) {
+    Atomic::store(reinterpret_cast<uint32_t volatile*>(&_mark), m.value32());
+  } else {
+    Atomic::store(&_mark, m);
+  }
+}
+
+void oopDesc::set_mark_full(markWord m) {
+  assert_correct_hash_transition(mark(), m);
   Atomic::store(&_mark, m);
 }
 
 void oopDesc::set_mark(HeapWord* mem, markWord m) {
   if (UseCompactObjectHeaders) {
     assert(!(m.hash_is_hashed() && m.hash_is_copied()), "must not be simultaneously hashed and copied state");
+    *(uint32_t*)(((char*)mem) + mark_offset_in_bytes()) = m.value32();
+  } else {
+    *(markWord*)(((char*)mem) + mark_offset_in_bytes()) = m;
   }
-  *(markWord*)(((char*)mem) + mark_offset_in_bytes()) = m;
 }
 
 void oopDesc::release_set_mark(markWord m) {
   assert_correct_hash_transition(mark(), m);
-  Atomic::release_store(&_mark, m);
+  if (UseCompactObjectHeaders) {
+    Atomic::release_store(reinterpret_cast<uint32_t volatile*>(&_mark), m.value32());
+  } else {
+    Atomic::release_store(&_mark, m);
+  }
 }
 
 void oopDesc::release_set_mark(HeapWord* mem, markWord m) {
   if (UseCompactObjectHeaders) {
     assert(!(m.hash_is_hashed() && m.hash_is_copied()), "must not be simultaneously hashed and copied state");
+    Atomic::release_store((uint32_t*)(((char*)mem) + mark_offset_in_bytes()), m.value32());
+  } else {
+    Atomic::release_store((markWord*)(((char*)mem) + mark_offset_in_bytes()), m);
   }
-  Atomic::release_store((markWord*)(((char*)mem) + mark_offset_in_bytes()), m);
 }
 
 markWord oopDesc::cas_set_mark(markWord new_mark, markWord old_mark) {
@@ -215,7 +232,6 @@ void oopDesc::release_set_klass(HeapWord* mem, Klass* k) {
 }
 
 void oopDesc::set_klass_gap(HeapWord* mem, int v) {
-  assert(!UseCompactObjectHeaders, "don't set Klass* gap with compact headers");
   if (UseCompressedClassPointers) {
     *(int*)(((char*)mem) + klass_gap_offset_in_bytes()) = v;
   }
@@ -379,7 +395,7 @@ void oopDesc::forward_safe_init_mark() {
       m = m.hash_set_hashed();
     }
     // log_info(gc)("FS Init mark: oop: " PTR_FORMAT ", mark: " INTPTR_FORMAT, p2i(this), m.value());
-    set_mark(m);
+    set_mark_full(m);
   } else {
     set_mark(markWord::prototype());
   }
@@ -465,7 +481,7 @@ void oopDesc::forward_to(oop p, bool expanded) {
     m = m.set_forward_expanded();
   }
   assert(forwardee(m) == p, "encoding must be reversible");
-  set_mark(m);
+  set_mark_full(m);
 }
 
 void oopDesc::forward_to_self() {
@@ -491,6 +507,10 @@ oop oopDesc::forward_to_atomic(oop p, markWord compare, atomic_memory_order orde
 oop oopDesc::forward_to_self_atomic(markWord old_mark, atomic_memory_order order) {
   markWord new_mark = old_mark.set_self_forwarded();
   assert(forwardee(new_mark) == cast_to_oop(this), "encoding must be reversible");
+  // Note: It is ok, and even necessary, to CAS the full 64 bit, even though only
+  // the lowest 32 bits are modified. This happens during a safepoint, therefore
+  // the object beyond the header should not change. And we need the full
+  // 64 bit to capture the forwarding pointer in case of CAS failure.
   return cas_set_forwardee(new_mark, old_mark, order);
 }
 
@@ -636,7 +656,7 @@ void oopDesc::initialize_hash_if_necessary(oop obj, Klass* k, markWord m) {
   assert(!m.hash_is_copied(), "must not be installed");
   uint32_t hash = static_cast<uint32_t>(ObjectSynchronizer::get_next_hash(nullptr, obj));
   int offset = k->hash_offset_in_bytes(cast_to_oop(this));
-  assert(offset >= 8, "hash offset must not be in header");
+  assert(offset >= 4, "hash offset must not be in header");
   //log_info(gc)("Initializing hash for " PTR_FORMAT ", old: " PTR_FORMAT ", hash: %d, offset: %d", p2i(this), p2i(obj), hash, offset);
   int_field_put(offset, (jint)hash);
   m = m.hash_set_copied();

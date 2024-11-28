@@ -75,6 +75,7 @@ public:
   inline markWord* mark_addr() const;
 
   inline void set_mark(markWord m);
+  inline void set_mark_full(markWord m);
   static inline void set_mark(HeapWord* mem, markWord m);
   static inline void release_set_mark(HeapWord* mem, markWord m);
 
@@ -366,8 +367,11 @@ public:
   }
   static int klass_gap_offset_in_bytes() {
     assert(has_klass_gap(), "only applicable to compressed klass pointers");
-    assert(!UseCompactObjectHeaders, "don't use klass_offset_in_bytes() with compact headers");
-    return klass_offset_in_bytes() + sizeof(narrowKlass);
+    if (UseCompactObjectHeaders) {
+      return base_offset_in_bytes();
+    } else {
+      return klass_offset_in_bytes() + sizeof(narrowKlass);
+    }
   }
 
   static int base_offset_in_bytes() {
@@ -376,7 +380,7 @@ public:
       // With compact headers, the Klass* field is not used for the Klass*
       // and is used for the object fields instead.
       STATIC_ASSERT(sizeof(markWord) == 8);
-      return sizeof(markWord);
+      return 4;
     } else if (UseCompressedClassPointers) {
       return sizeof(markWord) + sizeof(narrowKlass);
     } else

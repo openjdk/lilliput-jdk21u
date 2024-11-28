@@ -87,9 +87,9 @@ public class BaseOffsets {
             INT_ARRAY_OFFSET = 12;
             LONG_ARRAY_OFFSET = 16;
         } else if (WB.getBooleanVMFlag("UseCompactObjectHeaders")) {
-            INT_OFFSET = 8;
-            INT_ARRAY_OFFSET = 12;
-            LONG_ARRAY_OFFSET = 16;
+            INT_OFFSET = 4;
+            INT_ARRAY_OFFSET = 8;
+            LONG_ARRAY_OFFSET = 8;
         } else if (WB.getBooleanVMFlag("UseCompressedClassPointers")) {
             INT_OFFSET = 12;
             INT_ARRAY_OFFSET = 16;

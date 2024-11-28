@@ -51,7 +51,7 @@ Klass* markWord::klass_or_null() const {
 
 narrowKlass markWord::narrow_klass() const {
   assert(UseCompactObjectHeaders, "only used with compact object headers");
-  return narrowKlass(value() >> klass_shift);
+  return narrowKlass(value32() >> klass_shift);
 }
 
 markWord markWord::set_narrow_klass(narrowKlass nklass) const {

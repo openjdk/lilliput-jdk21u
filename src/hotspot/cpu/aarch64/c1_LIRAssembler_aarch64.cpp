@@ -2562,10 +2562,8 @@ void LIR_Assembler::emit_load_klass(LIR_OpLoadKlass* op) {
 
   if (UseCompressedClassPointers) {
     if (UseCompactObjectHeaders) {
-      __ ldr(result, Address(obj, oopDesc::mark_offset_in_bytes()));
-
-      // Shift to get proper narrow Klass*.
-      __ lsr(result, result, markWord::klass_shift);
+      __ ldrw(result, Address(obj, oopDesc::mark_offset_in_bytes()));
+      __ lsrw(result, result, markWord::klass_shift);
     } else {
       __ ldrw(result, Address (obj, oopDesc::klass_offset_in_bytes()));
     }

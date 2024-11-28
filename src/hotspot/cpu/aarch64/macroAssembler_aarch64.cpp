@@ -4436,9 +4436,8 @@ void MacroAssembler::load_method_holder(Register holder, Register method) {
 // Preserves all registers (incl src, rscratch1 and rscratch2).
 void MacroAssembler::load_nklass_compact(Register dst, Register src) {
   assert(UseCompactObjectHeaders, "expects UseCompactObjectHeaders");
-
-  ldr(dst, Address(src, oopDesc::mark_offset_in_bytes()));
-  lsr(dst, dst, markWord::klass_shift);
+  ldrw(dst, Address(src, oopDesc::mark_offset_in_bytes()));
+  lsrw(dst, dst, markWord::klass_shift);
 }
 
 void MacroAssembler::load_klass(Register dst, Register src) {
